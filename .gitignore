@@ -16,17 +16,13 @@ Config/*.local.yaml
 # --------------------
 Tesseract/
 Poppler/
+arabic_reshaper/
+bidi/
 
 # --------------------
 # Runtime / generated data
 # --------------------
-data/
-**/Cert_Inbox/
-**/Cert_To_PNG_OCR/
-**/Cert_Data_CSVs/
-**/Annotated_PDFs/
-**/Final_PDFs/
-**/Printed_Cert/
+
 
 # --------------------
 # OCR artifacts / logs

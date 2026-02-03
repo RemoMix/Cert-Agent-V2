@@ -147,7 +147,6 @@ class ERPAgent:
         return results
     
     def generate_annotation_text(self, lot_results):
-        """Generate annotation text in format: اسم المورد lot XXXX"""
         if not lot_results or not any(r.get('found') for r in lot_results):
             return "غير مسجل في النظام"
         
@@ -157,14 +156,13 @@ class ERPAgent:
                 supplier = result.get('supplier', '').strip()
                 internal_lot = result.get('internal_lot', '').strip()
                 
-                # Format: "اسم المورد lot XXXX"
                 if supplier and internal_lot:
-                    parts.append(f"{supplier} lot {internal_lot}")
+                    # Format: "اسم المورد lot XXXX"
+                    parts.append(f"{supplier}  {internal_lot}")
         
         if not parts:
             return "غير مسجل في النظام"
         
-        # Join multiple lines if needed
         return "\\n".join(parts)
     
     def process_certificate(self, extraction_result):

@@ -1,8 +1,8 @@
 
 #!/usr/bin/env python3
 """
-Cert-Print-Agent v3.1 - Two-Stage Processing
-Stage 1: PDF → Image → OCR → JSON
+Cert-Print-Agent v3.2 - Two-Stage Processing with Direct Text Extraction
+Stage 1: PDF → [Direct Text or Image → OCR] → JSON
 Stage 2: JSON → Extract Lot → ERP → Print
 """
 
@@ -39,9 +39,9 @@ class CertPrintOrchestratorV2:
             return {}
     
     def run_stage1(self):
-        """Stage 1: PDF → Image → OCR → JSON"""
+        """Stage 1: PDF → [Direct Text or OCR] → JSON"""
         self.logger.info("\\n" + "="*60)
-        self.logger.info("STAGE 1: PDF → Image → OCR → JSON")
+        self.logger.info("STAGE 1: PDF → [Direct Text or OCR] → JSON")
         self.logger.info("="*60)
         
         results = self.pdf_agent.run()
@@ -81,7 +81,7 @@ class CertPrintOrchestratorV2:
     def run(self):
         """Run complete workflow"""
         self.logger.info("\\n" + "="*60)
-        self.logger.info("Cert-Print-Agent v3.1 - Starting")
+        self.logger.info("Cert-Print-Agent v3.2 - Starting")
         self.logger.info("="*60)
         
         start_time = datetime.now()
@@ -107,7 +107,7 @@ class CertPrintOrchestratorV2:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description='Cert-Print-Agent v3.1')
+    parser = argparse.ArgumentParser(description='Cert-Print-Agent v3.2')
     parser.add_argument('--config', default='config.yaml', help='Config file')
     parser.add_argument('--stage1-only', action='store_true', help='Only run Stage 1 (PDF→JSON)')
     parser.add_argument('--stage2-only', action='store_true', help='Only run Stage 2 (JSON→Print)')

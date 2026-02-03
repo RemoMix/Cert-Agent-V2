@@ -1,15 +1,15 @@
-
 import os
 import json
 import pytesseract
 from pdf2image import convert_from_path
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 import yaml
 from datetime import datetime
 from pathlib import Path
 import logging
 
 logger = logging.getLogger('CertPrintAgent')
+
 
 class PDFtoImageAgent:
     def __init__(self, config_path="config.yaml"):
@@ -41,11 +41,20 @@ class PDFtoImageAgent:
         else:
             self.poppler_path = None
     
+    def preprocess_image(self, image):
+        """تحسين الصورة قبل OCR"""
+        # تحويل للرمادي
+        gray = image.convert('L')
+        # زيادة التباين
+        enhancer = ImageEnhance.Contrast(gray)
+        enhanced = enhancer.enhance(2.0)
+        return enhanced
+    
     def pdf_to_image(self, pdf_path):
         """Convert PDF to image(s)"""
         try:
-            logger.info(f"Converting PDF to image: {os.path.basename(pdf_path)}")
-            kwargs = {'dpi': 400}
+            logger.info(f"Converting PDF: {os.path.basename(pdf_path)}")
+            kwargs = {'dpi': 300}
             if self.poppler_path:
                 kwargs['poppler_path'] = self.poppler_path
             
@@ -57,26 +66,31 @@ class PDFtoImageAgent:
             return []
     
     def ocr_image(self, image):
-        """Extract text from image using OCR"""
+        """Extract text from image using OCR - IMPROVED"""
         try:
-            text = pytesseract.image_to_string(image, lang='eng')
+            # Preprocessing
+            processed = self.preprocess_image(image)
+            
+            # محاولة 1: Arabic + English (الأفضل للشهادات المختلطة)
+            try:
+                text = pytesseract.image_to_string(processed, lang='ara+eng')
+                if text.strip() and len(text) > 100:
+                    logger.info(f"OCR (ara+eng): {len(text)} chars")
+                    return text
+            except Exception as e:
+                logger.warning(f"ara+eng failed: {e}")
+            
+            # محاولة 2: English فقط
+            text = pytesseract.image_to_string(processed, lang='eng')
+            logger.info(f"OCR (eng): {len(text)} chars")
             return text
+            
         except Exception as e:
             logger.error(f"OCR error: {e}")
             return ""
     
-    def save_image(self, image, output_path):
-        """Save image to disk"""
-        try:
-            image.save(output_path, 'PNG')
-            logger.info(f"Image saved: {output_path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error saving image: {e}")
-            return False
-    
     def process_pdf(self, pdf_path, output_dir="temp_images"):
-        """Process single PDF: convert to image + OCR → save JSON"""
+        """Process single PDF: Image → OCR → JSON"""
         filename = os.path.basename(pdf_path)
         base_name = os.path.splitext(filename)[0]
         
@@ -84,24 +98,24 @@ class PDFtoImageAgent:
         logger.info(f"Processing: {filename}")
         logger.info(f"{'='*50}")
         
-        # Create output directories
+        # Create directories
         os.makedirs(output_dir, exist_ok=True)
         json_dir = Path(output_dir) / "json"
         os.makedirs(json_dir, exist_ok=True)
         
-        # Convert PDF to images
+        # Convert to images
         images = self.pdf_to_image(pdf_path)
         if not images:
             logger.error("Failed to convert PDF")
             return None
         
-        # Process each page
         results = []
         for i, image in enumerate(images):
             # Save image
             image_filename = f"{base_name}_page{i+1}.png"
             image_path = os.path.join(output_dir, image_filename)
-            self.save_image(image, image_path)
+            image.save(image_path, 'PNG')
+            logger.info(f"Image saved: {image_filename}")
             
             # OCR
             logger.info(f"Running OCR on page {i+1}...")
@@ -117,7 +131,10 @@ class PDFtoImageAgent:
             }
             results.append(result)
             
-            logger.info(f"OCR complete: {len(text)} characters extracted")
+            # DEBUG: اطبع جزء من النص
+            if text:
+                sample = text.replace("\\n", " ")[:200]
+                logger.info(f"Text sample: {sample}...")
         
         # Save JSON
         json_filename = f"{base_name}_ocr.json"
@@ -165,7 +182,8 @@ class PDFtoImageAgent:
         logger.info("=== PDF to Image + OCR Agent ===")
         return self.process_all()
 
-# Standalone function
+
 def convert_pdfs_to_json(config_path="config.yaml"):
     agent = PDFtoImageAgent(config_path)
     return agent.run()
+

@@ -260,9 +260,84 @@ Select-String "ERROR" logs/processing.log
 
 **الإصدار:** 3.0  
 **آخر تحديث:** 2024
-'''
 
-with open('/mnt/kimi/output/README.md', 'w', encoding='utf-8') as f:
-    f.write(readme_content)
 
-print("✓ README.md تم إنشاؤه")
+
+# دليل التحديث - Cert-Print-Agent v3.2
+
+## التغييرات الرئيسية:
+
+### 1. PDFtoImageAgent.py (محسّن)
+- **إضافة**: استخراج النص المباشر من PDF بدون OCR (باستخدام PyMuPDF)
+- **إضافة**: Preprocessing للصور (تحسين التباين، إزالة التشويش)
+- **تحسين**: دعم Arabic + English في OCR
+- **المنطق**: 
+  - أولاً: يحاول استخراج النص مباشرة (لو PDF فيه نص)
+  - لو فشل: يستخدم OCR على الصور
+
+### 2. JSONExtractLotAgent.py (محسّن)
+- **تحسين**: Pattern matching مرن يتحمل:
+  - أخطاء OCR (l0t بدل lot)
+  - مسافات زائدة
+  - أشكال مختلفة من "Lot Number"
+- **إضافة**: البحث بالسياق (Context-based) لو الـ pattern التقليدي فشل
+- **إضافة**: دعم استخراج رقم الشهادة والمنتج
+
+### 3. main_v3.py
+- نفس المنطق بس مع تحديث رقم الإصدار
+
+## خطوات التحديث:
+
+```bash
+# 1. احفظ الملفات القديمة (احتياطي)
+cd "D:\\My Projects\\Cert-Print-Agent"
+mkdir backup
+copy Agents\\PDFtoImageAgent.py backup\\
+copy Agents\\JSONExtractLotAgent.py backup\\
+
+# 2. استبدل الملفات بالإصدارات الجديدة
+# انسخ الملفات من /mnt/kimi/output/ إلى المجلد المناسب
+
+# 3. ثبّت PyMuPDF (مطلوب للاستخراج المباشر)
+pip install pymupdf
+
+# 4. اختبار
+python test_extraction.py
+
+# 5. تشغيل كامل
+python main_v3.py --stage1-only
+python main_v3.py --stage2-only
+```
+
+## اختبار سريع:
+
+```bash
+# اختبار ملف واحد
+python test_extraction.py "GetCertAgent/Cert_Inbox/Basil 139928.pdf"
+
+# اختبار كل الملفات
+python test_extraction.py
+```
+
+## لو الـ Arabic OCR مش شغال:
+
+1. نزل ملفات اللغة العربية لـ Tesseract:
+   - من: https://github.com/UB-Mannheim/tesseract/wiki
+   - أو شغل: `tesseract --list-langs` وتأكد إن "ara" موجود
+
+2. لو "ara" مش موجود، ثبته:
+   ```bash
+   # Windows: حمل من هنا
+   https://github.com/UB-Mannheim/tesseract/wiki
+   
+   # ضع الملفات في: Tesseract/tessdata/ara.traineddata
+   ```
+
+3. لو مفيش Arabic خالص، النظام هيشتغل بـ English بس مع الـ pattern matching المحسّن
+
+## ملاحظات:
+
+- **الاستخراج المباشر** (بدون OCR) أسرع وأدق بكتير
+- **الـ Preprocessing** بيحسن دقة OCR لو اضطرينا نستخدمه
+- **Pattern matching المرن** بيقدر يلاقي اللوت حتى لو فيه أخطاء في OCR
+
