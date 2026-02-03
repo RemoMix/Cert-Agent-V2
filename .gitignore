@@ -1,0 +1,35 @@
+# --------------------
+# Python
+# --------------------
+.venv/
+__pycache__/
+*.pyc
+
+# --------------------
+# Secrets / local config
+# --------------------
+.env
+Config/*.local.yaml
+
+# --------------------
+# OCR binaries (portable)
+# --------------------
+Tesseract/
+Poppler/
+
+# --------------------
+# Runtime / generated data
+# --------------------
+data/
+**/Cert_Inbox/
+**/Cert_To_PNG_OCR/
+**/Cert_Data_CSVs/
+**/Annotated_PDFs/
+**/Final_PDFs/
+**/Printed_Cert/
+
+# --------------------
+# OCR artifacts / logs
+# --------------------
+*.hocr
+*.log

@@ -1,0 +1,52 @@
+# Cert-Print-Agent Configuration v3.0
+
+paths:
+  base_dir: "."
+  source_cert: "GetCertAgent/Source_Cert"
+  annotated_cert: "GetCertAgent/Annotated_Certificates"
+  printed_cert: "GetCertAgent/Printed_Annotated_Cert"
+  emails_dir: "GetCertAgent/MyEmails"
+  cert_inbox: "GetCertAgent/Cert_Inbox"
+  processed: "GetCertAgent/Processed"
+  temp_images: "GetCertAgent/TempImages"
+  logs_dir: "logs"
+  erp_file: "Data/Raw_Warehouses.xlsx"
+  poppler_path: "Poppler/Library/bin"
+  tesseract_path: "Tesseract/tesseract.exe"
+
+excel:
+  sheets:
+    - "2026"
+    - "2025"
+    - "2024"
+    - "2023"
+  columns:
+    cert_lot: "NO"
+    internal_lot: "Lot Num."
+    supplier: "Supplier"
+
+printing:
+  printer_name: "HP Neverstop Laser 100x PCLm-S"
+  retry_attempts: 3
+  retry_delay_seconds: 10
+  check_printer_interval: 30
+  max_retries: 5
+  annotation:
+    position_x: 50
+    position_y: 750
+    font_size: 11
+
+ocr:
+  language: "eng"
+  dpi: 300
+
+monitoring:
+  check_interval_minutes: 5
+  outlook_autostart: true
+  processed_emails_db: "processed_emails.db"
+
+logging:
+  log_file: "logs/processing.log"
+  level: "INFO"
+  max_size_mb: 10
+  backup_count: 5
