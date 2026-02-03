@@ -48,6 +48,11 @@ class AnnotatePrintAgent:
         for d in [self.source_cert_dir, self.annotated_dir, self.printed_dir, self.processed_dir]:
             os.makedirs(d, exist_ok=True)
     
+    def reverse_arabic(self, text):
+        """عكس ترتيب الحروف العربية للعرض الصحيح في PIL"""
+        # نعكس ترتيب الحروف عشان PIL ترسم من الشمال لليمين
+        return text[::-1]
+    
     def get_font(self):
         """الحصول على خط مناسب"""
         font_paths = [
@@ -67,19 +72,15 @@ class AnnotatePrintAgent:
     
     def parse_annotation(self, text):
         """تقسيم النص لعربي وإنجليزي"""
-        # مثال: "ماهر سعد lot 2601"
-        # نبحث عن "lot" ونفصل
-        match = re.search(r'^(.+?)\s+lot\s+(\d+)$', text, re.IGNORECASE)
+        match = re.search(r'^(.*?)\s+lot\s+(\d+)$', text, re.IGNORECASE)
         if match:
-            arabic_name = match.group(1).strip()  # ماهر سعد
-            number = match.group(2).strip()       # 2601
+            arabic_name = match.group(1).strip()
+            number = match.group(2).strip()
             return arabic_name, number
-        
-        # لو مفيش lot، نرجع النص كله عربي
         return text, ""
     
     def create_text_image(self, text, width=220, height=40):
-        """إنشاء صورة فيها النص - العربي من اليمين"""
+        """إنشاء صورة فيها النص - العربي معكوس"""
         img = Image.new('RGB', (width, height), color='white')
         draw = ImageDraw.Draw(img)
         
@@ -87,46 +88,42 @@ class AnnotatePrintAgent:
         draw.rectangle([0, 0, width-1, height-1], outline='black', width=2)
         
         font = self.get_font()
-        
-        # تقسيم النص
         arabic_name, number = self.parse_annotation(text)
         
         if number:
-            # عندنا "lot XXXX" - نكتبهم منفصلين
-            # الجزء العربي (نكتبه من اليمين للشمال)
-            arabic_text = arabic_name
+            # عكس الاسم العربي عشان PIL ترسمه صح
+            arabic_reversed = self.reverse_arabic(arabic_name)
             english_text = f"lot {number}"
             
-            # نرسم العربي على اليمين
-            bbox_ar = draw.textbbox((0, 0), arabic_text, font=font)
+            # حساب الأحجام
+            bbox_ar = draw.textbbox((0, 0), arabic_reversed, font=font)
             ar_width = bbox_ar[2] - bbox_ar[0]
             
-            # نرسم الإنجليزي على الشمال
             bbox_en = draw.textbbox((0, 0), english_text, font=font)
             en_width = bbox_en[2] - bbox_en[0]
             
-            # حساب المواقع
-            total_width = ar_width + en_width + 10  # مسافة بينهم
+            # المجموع
+            total_width = ar_width + en_width + 15
             start_x = (width - total_width) // 2
-            
             y = (height - (bbox_ar[3] - bbox_ar[1])) // 2 - 2
             
-            # رسم العربي (على اليمين في الصورة = آخر حاجة نرسمها)
-            draw.text((start_x + en_width + 10, y), arabic_text, fill='black', font=font)
-            
-            # رسم الإنجليزي (على الشمال)
+            # رسم الإنجليزي على الشمال
             draw.text((start_x, y), english_text, fill='black', font=font)
+            
+            # رسم العربي (معكوس) على اليمين
+            draw.text((start_x + en_width + 15, y), arabic_reversed, fill='black', font=font)
         else:
-            # كله عربي - في المنتصف
-            bbox = draw.textbbox((0, 0), text, font=font)
+            # كله عربي - معكوس
+            reversed_text = self.reverse_arabic(text)
+            bbox = draw.textbbox((0, 0), reversed_text, font=font)
             x = (width - (bbox[2] - bbox[0])) // 2
             y = (height - (bbox[3] - bbox[1])) // 2 - 2
-            draw.text((x, y), text, fill='black', font=font)
+            draw.text((x, y), reversed_text, fill='black', font=font)
         
         return img
     
-    def annotate_pdf(self, pdf_path, annotation_text, output_dir=None):
-        """كتابة النص على PDF"""
+    def annotate_pdf(self, pdf_path, annotation_text, output_dir=None, overwrite=False):
+        """كتابة النص على PDF - مع خيار Overwrite"""
         try:
             logger.info(f"Annotating: {os.path.basename(pdf_path)}")
             logger.info(f"Text: {annotation_text}")
@@ -136,8 +133,20 @@ class AnnotatePrintAgent:
             
             filename = os.path.basename(pdf_path)
             base_name, ext = os.path.splitext(filename)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = os.path.join(output_dir, f"{base_name}_{timestamp}_annotated{ext}")
+            
+            # اسم الملف الناتج
+            if overwrite:
+                # نفس الاسم (overwrite)
+                output_path = os.path.join(output_dir, filename)
+            else:
+                # اسم جديد مع timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_path = os.path.join(output_dir, f"{base_name}_{timestamp}_annotated{ext}")
+            
+            # لو الملف موجود و overwrite، نمسحه الأول
+            if os.path.exists(output_path):
+                os.remove(output_path)
+                logger.info(f"Removed old file: {output_path}")
             
             # فتح PDF
             doc = fitz.open(pdf_path)
@@ -213,33 +222,47 @@ class AnnotatePrintAgent:
         return None
     
     def process_certificate(self, erp_result, original_pdf_path):
+        """معالجة شهادة واحدة"""
         try:
             cert_number = erp_result.get('cert_number', 'UNKNOWN')
             annotation_text = erp_result.get('annotation_text', '')
             
             logger.info(f"Processing: {cert_number}")
             
+            # البحث عن ملف PDF
             pdf_path = self.find_pdf_file(os.path.basename(original_pdf_path))
             if not pdf_path:
-                logger.error(f"PDF not found")
+                logger.error(f"PDF not found: {original_pdf_path}")
                 return False
             
-            annotated = self.annotate_pdf(pdf_path, annotation_text)
+            # تحديد مكان الحفظ
+            filename = os.path.basename(pdf_path)
+            annotated_path = os.path.join(self.annotated_dir, filename)
+            
+            # لو الملف موجود في Annotated_Certificates، نعمل overwrite
+            overwrite = os.path.exists(annotated_path)
+            
+            # إنشاء النسخة المكتوب عليها
+            annotated = self.annotate_pdf(pdf_path, annotation_text, 
+                                          output_dir=self.annotated_dir, 
+                                          overwrite=True)
             if not annotated:
                 return False
             
+            # طباعة
             printed = False
             if self.is_printer_available():
                 printed = self.print_with_retry(annotated)
             
-            # نقل الملفات
+            # نقل الملف الأصلي
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            new_name = f"{os.path.splitext(os.path.basename(pdf_path))[0]}_{timestamp}.pdf"
+            new_name = f"{os.path.splitext(filename)[0]}_{timestamp}.pdf"
             shutil.move(pdf_path, os.path.join(self.source_cert_dir, new_name))
             
+            # لو اتطبع، ننقل للPrinted
             if printed:
-                printed_name = f"{os.path.splitext(os.path.basename(pdf_path))[0]}_{timestamp}_printed.pdf"
-                shutil.move(annotated, os.path.join(self.printed_dir, printed_name))
+                printed_name = f"{os.path.splitext(filename)[0]}_{timestamp}_printed.pdf"
+                shutil.copy(annotated, os.path.join(self.printed_dir, printed_name))
             
             return printed
             
