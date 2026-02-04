@@ -12,13 +12,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 import logging
 
 try:
-    import arabic_reshaper
-    from bidi.algorithm import get_display
-    ARABIC_AVAILABLE = True
-except ImportError:
-    ARABIC_AVAILABLE = False
-
-try:
     import win32print
     import win32api
     WIN32_AVAILABLE = True
@@ -31,10 +24,25 @@ logger = logging.getLogger('CertPrintAgent')
 # FONT
 # ==================================================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FONT_PATH = os.path.join(BASE_DIR, "fonts", "arial.ttf")
 
-# Register font
-pdfmetrics.registerFont(TTFont("Arabic", FONT_PATH))
+FONT_PATHS = [
+    os.path.join(BASE_DIR, "fonts", "arial.ttf"),
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/tahoma.ttf",
+    "C:/Windows/Fonts/times.ttf",
+]
+
+FONT_PATH = None
+for fp in FONT_PATHS:
+    if os.path.exists(fp):
+        FONT_PATH = fp
+        break
+
+if FONT_PATH:
+    pdfmetrics.registerFont(TTFont("ArabicFont", FONT_PATH))
+    logger.info(f"Font: {FONT_PATH}")
+else:
+    logger.error("No font found!")
 
 
 class AnnotatePrintAgent:
@@ -66,18 +74,18 @@ class AnnotatePrintAgent:
             os.makedirs(d, exist_ok=True)
     
     def build_annotated_pdf(self, pdf_path, annotation_text):
-        """Build annotated PDF using reportlab - نفس الكود بالظبط"""
+        """Build annotated PDF - سطرين منفصلين"""
         try:
             # تقسيم النص
             parts = annotation_text.split(' lot ')
             if len(parts) == 2:
-                supplier = parts[0].strip()
-                internal_lots_text = 'lot ' + parts[1].strip()
+                line1 = parts[0].strip()  # باسم حنا
+                line2 = 'lot ' + parts[1].strip()  # lot 2601
             else:
-                supplier = annotation_text
-                internal_lots_text = ''
+                line1 = annotation_text
+                line2 = ""
             
-            # قراءة PDF الأصلي
+            # قراءة PDF
             reader = PdfReader(pdf_path)
             writer = PdfWriter()
             
@@ -85,45 +93,42 @@ class AnnotatePrintAgent:
             packet = io.BytesIO()
             can = canvas.Canvas(packet, pagesize=A4)
             
-            # تجهيز النص العربي
-            if ARABIC_AVAILABLE:
-                supplier_ar = get_display(arabic_reshaper.reshape(supplier))
-            else:
-                supplier_ar = supplier
-            
-            # النص الكامل
-            if internal_lots_text:
-                text = f"{internal_lots_text}  {supplier_ar}"
-            else:
-                text = supplier_ar
-            
-            font = "Arabic"
-            size = 14
+            font = "ArabicFont"
+            size = 12
             can.setFont(font, size)
             
-            # حساب عرض النص
-            width = pdfmetrics.stringWidth(text, font, size)
+            # حساب أعراض الأسطر
+            width1 = pdfmetrics.stringWidth(line1, font, size) if line1 else 0
+            width2 = pdfmetrics.stringWidth(line2, font, size) if line2 else 0
+            max_width = max(width1, width2)
+            
+            # الموقع (أعلى يمين)
             x = 560
-            y = 810
+            y = 800  # أعلى شوية عشان سطرين
             
-            # رسم خلفية رمادية
-            can.setFillColorRGB(0.85, 0.85, 0.85)
-            can.rect(x - width - 12, y - 4, width + 12, size + 8, fill=1, stroke=0)
+            # خلفية رمادية للمستطيل
+            box_height = 45 if line2 else 25
+            can.setFillColorRGB(0.9, 0.9, 0.9)
+            can.rect(x - max_width - 12, y - 5, max_width + 12, box_height, fill=1, stroke=0)
             
-            # كتابة النص
+            # كتابة السطر الأول (العربي)
             can.setFillColorRGB(0, 0, 0)
-            can.drawRightString(x - 6, y, text)
+            if line1:
+                can.drawRightString(x - 6, y + 12, line1)
+            
+            # كتابة السطر الثاني (lot 2601)
+            if line2:
+                can.drawRightString(x - 6, y - 5, line2)
             
             can.save()
             packet.seek(0)
             
-            # دمج الـ overlay
+            # دمج
             overlay = PdfReader(packet)
             page = reader.pages[0]
             page.merge_page(overlay.pages[0])
             writer.add_page(page)
             
-            # باقي الصفحات
             for i in range(1, len(reader.pages)):
                 writer.add_page(reader.pages[i])
             
@@ -136,11 +141,11 @@ class AnnotatePrintAgent:
             with open(out_pdf, "wb") as f:
                 writer.write(f)
             
-            logger.info(f"✓ Annotated PDF saved: {out_pdf}")
+            logger.info(f"✓ Annotated: {out_pdf}")
             return out_pdf
             
         except Exception as e:
-            logger.error(f"Error annotating PDF: {e}")
+            logger.error(f"Error: {e}")
             import traceback
             logger.error(traceback.format_exc())
             return None
@@ -189,19 +194,16 @@ class AnnotatePrintAgent:
             annotation_text = erp_result.get('annotation_text', '')
             
             logger.info(f"Processing: {cert_number}")
-            logger.info(f"Annotation text: {annotation_text}")
             
             pdf_path = self.find_pdf_file(os.path.basename(original_pdf_path))
             if not pdf_path:
-                logger.error(f"PDF not found: {original_pdf_path}")
+                logger.error(f"PDF not found")
                 return False
             
-            # بناء PDF مكتوب عليه
             annotated = self.build_annotated_pdf(pdf_path, annotation_text)
             if not annotated:
                 return False
             
-            # طباعة
             printed = False
             if self.is_printer_available():
                 printed = self.print_with_retry(annotated)
