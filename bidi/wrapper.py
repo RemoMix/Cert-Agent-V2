@@ -2,7 +2,8 @@
 
 from typing import Optional, Union
 
-from .bidi import get_base_level_inner, get_display_inner
+# Use the full path from your project root
+from .algorithm import get_base_level, get_display
 
 StrOrBytes = Union[str, bytes]
 

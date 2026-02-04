@@ -9,7 +9,6 @@ pyyaml==6.0.1
 schedule==1.2.0
 opencv-python
 PyPDF2==3.0.1
-reportlab==4.0.4
 pywin32==306; platform_system=="Windows"
 watchdog==3.0.0
 
@@ -17,3 +16,12 @@ watchdog==3.0.0
 # Utilities
 python-dateutil==2.8.2
 
+PyPDF2>=3.0.0
+reportlab>=4.0.0
+
+# Configuration
+PyYAML>=6.0
+
+# Arabic text support (NEW - للحروف العربية المتصلة)
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
