@@ -22,6 +22,12 @@ bidi/
 # --------------------
 # Runtime / generated data
 # --------------------
+InPut/Cert_Inbox
+InPut/MyEmails
+InPut/Source_Cert
+OutPut/Annotated_Certificates
+OutPut/Not_Founded_In_Excel
+OutPut/Printed_Annotated_Cert
 
 
 # --------------------
